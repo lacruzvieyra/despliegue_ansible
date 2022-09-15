@@ -1,0 +1,7 @@
+---
+mysql_root_password: "luzcv"
+app_user: "luzcv"
+http_host: "lCruz.com"
+http_conf: "lCruz.com.conf"
+http_port: "80"
+disable_default: true

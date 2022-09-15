@@ -1,0 +1,91 @@
+---
+- name: Despliegue de aplicacion web
+  hosts: all
+  become: true
+  vars_files:
+    - vars/vars.yml
+
+  tasks:
+    - name: Instalar prerequisitos app
+      apt: name={{ item }} update_cache=yes state=latest force_apt_get=yes
+      loop: [ 'aptitude' ]
+
+    - name: Instalar servicio aplicacion 
+      apt: name={{ item }} update_cache=yes state=latest
+      loop: [ 'apache2', 'mysql-server', 'python3-pymysql', 'php', 'php-mysql', 'libapache2-mod-php' ]
+    
+    - name: Crear directorio para la app
+      file:
+        path: "/var/www/{{ http_host }}"
+        state: directory
+        owner: "{{ app_user }}"
+        mode: '0755'
+
+    - name: Crear y configurar el host virtual de Apache desde el archivo
+      template:
+        src: "files/apache.conf.j2"
+        dest: "/etc/apache2/sites-available/{{ http_conf }}"
+      notify: Reload Apache
+      
+    - name: Habilotar nuevo sitio virtualhost  
+      shell: /usr/sbin/a2ensite {{ http_conf }}
+      notify: Reload Apache
+
+    - name: Delete the default apache site
+      shell: /usr/sbin/a2dissite 000-default.conf
+      when: disable_default
+      notify: Reload Apache
+
+    - name: Se establece la contraseña de root de mysql
+      mysql_user:
+        login_user: root
+        login_password: " "
+        name: root
+        password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        
+    - name: Eliminar las cuentas anonimas de mysql
+      mysql_user:
+        name: ''
+        host_all: yes
+        state: absent
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+
+    - name: Remover la base de datos por default de mysql
+      mysql_db:
+        name: test
+        state: absent
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+           
+    - name: Crear base de datos de la aplicacion en el servidor
+      mysql_db: name=alumnos state=present login_user=root login_password="luzcv"
+      
+    - name: Copiar archivo sql al servidor
+      copy: src=files/alumnos.sql dest=/tmp/alumnos.sql
+      
+    - name: Importar tablas y columnas de la base de datos
+      mysql_db: name=alumnos state=import target=/tmp/alumnos.sql login_user=root login_password="luzcv"  
+      
+    - name: Repositorio
+      git:
+        repo: 'https://github.com/lacruzvieyra/alumnos_crud.git'
+        dest: /var/www/{{ http_host }}
+      
+    - name: "Agregar puerto {{ http_port }} al firewall del servidor"
+      ufw:
+        rule: allow
+        port: "{{ http_port }}"
+        proto: tcp
+
+  handlers:
+    - name: Recargar apache2
+      service:
+        name: apache2
+        state: reloaded
+
+    - name: Reiniciar apache2
+      service:
+        name: apache2
+        state: restarted

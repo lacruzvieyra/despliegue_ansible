@@ -20,6 +20,13 @@
         state: directory
         owner: "{{ app_user }}"
         mode: '0755'
+        
+    - name: Crear directorio para la pagina web
+      file:
+        path: "/var/www/www{{ http_host }}"
+        state: directory
+        owner: "{{ app_user }}"
+        mode: '0755'
 
     - name: Crear y configurar el host virtual de Apache desde el archivo
       template:
@@ -67,6 +74,11 @@
       
     - name: Importar tablas y columnas de la base de datos
       mysql_db: name=alumnos state=import target=/tmp/alumnos.sql login_user=root login_password="luzcv"  
+      
+    - name: Repositorio sitio web
+      git:
+        repo: 'https://github.com/lacruzvieyra/curriculum_luz.git'
+        dest: /var/www/www{{ http_host }}
       
     - name: Repositorio
       git:
